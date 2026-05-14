@@ -33,6 +33,14 @@ HTTPService::HTTPService(ConnectionInfo *pConnInfo):_pConnInfo(pConnInfo) {
       }
     }
     checkMFLN(wifiClientSec, pConnInfo->serverUrl);
+    // If explicit SSL buffer sizes have been configured via HTTPOptions::sslBufferSize(),
+    // override the MFLN result. This is the recommended workaround for ESP8266 OOM
+    // crashes caused by BearSSL's default 16KB+16KB buffers exhausting the heap.
+    // See: https://github.com/tobiasschuerg/InfluxDB-Client-for-Arduino/issues/230
+    if(pConnInfo->httpOptions._sslRxBufferSize > 0 || pConnInfo->httpOptions._sslTxBufferSize > 0) {
+        wifiClientSec->setBufferSizes(pConnInfo->httpOptions._sslRxBufferSize,
+                                      pConnInfo->httpOptions._sslTxBufferSize);
+    }
 #elif defined(ESP32)
     WiFiClientSecure *wifiClientSec = new WiFiClientSecure;  
     if (pConnInfo->insecure) {

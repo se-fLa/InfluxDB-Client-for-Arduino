@@ -120,15 +120,45 @@ private:
     // Timeout [ms] for reading server response.
     // Default 5000ms  
     int _httpReadTimeout;
+#if defined(ESP8266)
+    // BearSSL TLS receive buffer size in bytes.
+    // BearSSL's default is 16KB RX + 16KB TX = 32KB total. Combined with the
+    // ~12-14KB the TLS handshake itself needs, this exceeds the ~30-40KB of
+    // free heap available at runtime on an ESP8266, causing an OOM crash.
+    // The MFLN fallback in the library only helps when the server advertises
+    // MFLN support. For example most InfluxDB servers do not so the large
+    // default buffers remain and the device crashes.
+    // Set to 512 for write-only use cases (sufficient for InfluxDB line-protocol
+    // payloads). Use a larger value, e.g. 1024, if you need to read larger
+    // server responses such as query results.
+    // 0 = use MFLN negotiation (default, existing behaviour).
+    uint16_t _sslRxBufferSize;
+    // BearSSL TLS transmit buffer size in bytes.
+    // 512 is sufficient for normal write operations. Increase if sending
+    // large batch payloads, adjust according to your available heap.
+    // 0 = use MFLN negotiation (default, existing behaviour).
+    uint16_t _sslTxBufferSize;
+#endif // ESP8266
 public:
     HTTPOptions():
         _connectionReuse(false),
-        _httpReadTimeout(5000) {
-        }
+        _httpReadTimeout(5000)
+#if defined(ESP8266)
+        ,_sslRxBufferSize(0),
+        _sslTxBufferSize(0)
+#endif // ESP8266
+        {}
     // Set true if HTTP connection should be kept open. Usable for frequent writes.
     HTTPOptions& connectionReuse(bool connectionReuse) { _connectionReuse = connectionReuse; return *this; }
     // Sets timeout after which HTTP stops reading
     HTTPOptions& httpReadTimeout(int httpReadTimeoutMs) { _httpReadTimeout = httpReadTimeoutMs; return *this; }
+#if defined(ESP8266)
+    // Sets BearSSL TLS buffer sizes independently for RX and TX (ESP8266 only).
+    // Overrides MFLN negotiation. Recommended: sslBufferSize(512, 512) for
+    // write-only use cases. Use a larger rxSize (e.g. 1024) when reading
+    // larger server responses such as query results.
+    HTTPOptions& sslBufferSize(uint16_t rxSize, uint16_t txSize) { _sslRxBufferSize = rxSize; _sslTxBufferSize = txSize; return *this; }
+#endif // ESP8266
 };
 
 #endif //_OPTIONS_H_
